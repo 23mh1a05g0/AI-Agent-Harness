@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock X - Social Network</title>
+    <style>
+        :root {
+            --bg-color: #0f1419;
+            --surface-color: #16181c;
+            --border-color: #2f3336;
+            --accent-color: #1d9bf0;
+            --text-color: #e7e9ea;
+            --subtext-color: #71767b;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            min-height: 100vh;
+        }
+        header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: rgba(15, 20, 25, 0.85);
+            backdrop-filter: blur(12px);
+        }
+        h1 { margin: 0; font-size: 20px; font-weight: 700; }
+        .auth-box {
+            padding: 16px;
+            background: var(--surface-color);
+            margin: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+        .form-row {
+            margin-bottom: 12px;
+        }
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            box-sizing: border-box;
+            background: #000;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 9999px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        .composer-box {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .composer-box textarea {
+            height: 80px;
+            resize: none;
+            margin-bottom: 10px;
+        }
+        .post {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .post-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .author { font-weight: 700; }
+        .timestamp { color: var(--subtext-color); font-size: 13px; }
+        .post-content { font-size: 15px; line-height: 1.4; }
+        .status-badge {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #23272d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Mock X Home</h1>
+            <div id="auth-status" class="status-badge">Checking session...</div>
+        </header>
+
+        <!-- Login Form -->
+        <div id="login-section" class="auth-box" style="display: none;">
+            <h3>Sign in to Mock X</h3>
+            <div class="form-row">
+                <input type="text" id="username" placeholder="Username (e.g. test_bot)" value="test_user" />
+            </div>
+            <div class="form-row">
+                <input type="password" id="password" placeholder="Password" value="secret123" />
+            </div>
+            <button id="login-btn" onclick="login()">Log In</button>
+        </div>
+
+        <!-- Composer Box -->
+        <div id="composer-section" class="composer-box" style="display: none;">
+            <div style="margin-bottom: 8px; font-size: 14px;">Logged in as: <strong id="user-display"></strong></div>
+            <textarea id="compose-input" placeholder="What is happening?!"></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button onclick="logout()" style="background: #333; font-size: 12px;">Sign Out</button>
+                <button id="post-btn" onclick="submitPost()">Post</button>
+            </div>
+        </div>
+
+        <!-- Feed -->
+        <div id="posts-container">
+            <!-- Dynamic Posts Loaded Here -->
+        </div>
+    </div>
+
+    <script>
+        async function checkSession() {
+            const res = await fetch('/api/session');
+            const data = await res.json();
+            const statusEl = document.getElementById('auth-status');
+            const loginSec = document.getElementById('login-section');
+            const compSec = document.getElementById('composer-section');
+            const userDisp = document.getElementById('user-display');
+
+            if (data.authenticated) {
+                statusEl.textContent = 'Authenticated: @' + data.username;
+                statusEl.style.color = '#00ba7c';
+                loginSec.style.display = 'none';
+                compSec.style.display = 'block';
+                userDisp.textContent = '@' + data.username;
+            } else {
+                statusEl.textContent = 'Not Authenticated';
+                statusEl.style.color = '#f4212e';
+                loginSec.style.display = 'block';
+                compSec.style.display = 'none';
+            }
+            loadPosts();
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (res.ok) {
+                checkSession();
+            } else {
+                alert('Login failed');
+            }
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            checkSession();
+        }
+
+        async function submitPost() {
+            const input = document.getElementById('compose-input');
+            const content = input.value.trim();
+            if (!content) return;
+
+            const res = await fetch('/api/compose', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            if (res.ok) {
+                input.value = '';
+                loadPosts();
+            } else {
+                const err = await res.json();
+                alert('Posting failed: ' + (err.detail || 'Unauthorized'));
+            }
+        }
+
+        async function loadPosts() {
+            const res = await fetch('/api/posts');
+            const data = await res.json();
+            const container = document.getElementById('posts-container');
+            container.innerHTML = '';
+            (data.posts || []).forEach(post => {
+                const div = document.createElement('div');
+                div.className = 'post';
+                div.innerHTML = `
+                    <div class="post-header">
+                        <span class="author">@${post.username}</span>
+                        <span class="timestamp">${post.timestamp}</span>
+                    </div>
+                    <div class="post-content">${post.content}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', checkSession);
+    </script>
+</body>
+</html>
